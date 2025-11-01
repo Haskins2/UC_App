@@ -18,15 +18,16 @@
 
 const { initializeApp } = require('firebase/app');
 const { getFirestore, collection, getDocs, addDoc, serverTimestamp } = require('firebase/firestore');
+require('dotenv').config();
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBRa5flCB51BSIJZLufs1dnqeu-GA6rpSo",
-  authDomain: "ucapp-7329b.firebaseapp.com",
-  projectId: "ucapp-7329b",
-  storageBucket: "ucapp-7329b.firebasestorage.app",
-  messagingSenderId: "95795248323",
-  appId: "1:95795248323:web:e0217f041ba2703254b676",
-  measurementId: "G-0RVJ1RMJ05"
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID,
+  measurementId: process.env.FIREBASE_MEASUREMENT_ID
 };
 
 async function testConnection() {
