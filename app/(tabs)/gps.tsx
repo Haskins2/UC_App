@@ -1,14 +1,13 @@
 import { Pressable, Text, View, StyleSheet, ScrollView } from 'react-native';
 import * as Location from 'expo-location';
 import { useState } from 'react';
-// import the new file system API for creating and writing files
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
+import { db } from '../../config/firebase';
+import { collection, addDoc, serverTimestamp, doc } from 'firebase/firestore';
 
 export default function GPS() {
-// useState is a react hook that stores data that can change
-// Location.LocationObject is a type that represents a location object, or can be null
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
 
   // error message handling
@@ -17,6 +16,9 @@ export default function GPS() {
   // track whether we're currently collecting GPS data
   const [isCollecting, setIsCollecting] = useState<boolean>(false);
 
+  // track whether live sharing to Firebase is enabled
+  const [isLiveSharing, setIsLiveSharing] = useState<boolean>(false);
+
   // array to store all collected GPS readings
   // each item will be a LocationObject containing coordinates, timestamp, etc.
   const [gpsData, setGpsData] = useState<Location.LocationObject[]>([]);
@@ -24,6 +26,36 @@ export default function GPS() {
   // store the subscription object so we can stop the GPS watcher later
   // the type is defined by expo-location library
   const [locationSubscription, setLocationSubscription] = useState<Location.LocationSubscription | null>(null);
+
+  // function to send GPS data to Firebase
+  const sendToFirebase = async (locationData: Location.LocationObject) => {
+    try {
+      const userId = 'stephen_haskins';
+      
+      // Correct structure: users/{userId}/gpsReadings
+      // First get reference to the user document
+      const userDocRef = doc(db, 'users', userId);
+      // Then get reference to the gpsReadings subcollection under that user
+      const gpsReadingsRef = collection(userDocRef, 'gpsReadings');
+      
+      // Prepare data matching your 8 fields
+      const gpsData = {
+        timestamp: serverTimestamp(),
+        latitude: locationData.coords.latitude,
+        longitude: locationData.coords.longitude,
+        altitude: locationData.coords.altitude ?? null,
+        horizontalAccuracy: locationData.coords.accuracy ?? null,
+        altitudeAccuracy: locationData.coords.altitudeAccuracy ?? null,
+        speed: locationData.coords.speed ?? null,
+        heading: locationData.coords.heading ?? null,
+      };
+      
+      await addDoc(gpsReadingsRef, gpsData);
+    } catch (error) {
+      console.error('Error sending to Firebase:', error);
+      setErrorMsg('Firebase error: ' + (error as Error).message);
+    }
+  };
 
   // function to start continuous GPS collection
   // this will collect a new GPS reading every second
@@ -57,6 +89,11 @@ export default function GPS() {
           // add this new location to our array of collected data
           // the spread operator (...) copies existing data, then we add new item
           setGpsData((prevData) => [...prevData, newLocation]);
+          
+          // if live sharing is enabled, send to Firebase
+          if (isLiveSharing) {
+            sendToFirebase(newLocation);
+          }
         }
       );
 
@@ -151,6 +188,23 @@ export default function GPS() {
     }
   };
 
+  // function to toggle live sharing to Firebase
+  const toggleLiveSharing = () => {
+    setIsLiveSharing((prev) => !prev);
+    
+    // If we just enabled live sharing and we're currently collecting, start sending data
+    if (!isLiveSharing && isCollecting) {
+      setErrorMsg(null);
+      // Note: the next GPS update will automatically send to Firebase
+      // because the callback checks isLiveSharing state
+    }
+    
+    if (isLiveSharing) {
+      // Just turned off live sharing
+      setErrorMsg(null);
+    }
+  };
+
   return (
     <ScrollView style={styles.scrollView}>
       <View style={styles.container}>
@@ -197,6 +251,19 @@ export default function GPS() {
             disabled={!isCollecting && gpsData.length === 0}
           >
             <Text style={styles.buttonText}>Restart Collection</Text>
+          </Pressable>
+
+          {/* live sharing toggle button - enables/disables Firebase streaming */}
+          <Pressable 
+            style={[styles.button, isLiveSharing ? styles.liveSharingActive : styles.liveSharingButton]} 
+            onPress={() => {
+              toggleLiveSharing();
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+          >
+            <Text style={styles.buttonText}>
+              {isLiveSharing ? 'Stop Live Sharing' : 'Start Live Sharing'}
+            </Text>
           </Pressable>
 
           {/* export button - disabled if we have no data */}
@@ -288,6 +355,14 @@ const styles = StyleSheet.create({
   // style for export button - green to indicate saving/success action
   exportButton: {
     backgroundColor: '#34C759', // green color
+  },
+  // style for live sharing button - purple/blue to indicate streaming action
+  liveSharingButton: {
+    backgroundColor: '#5856D6', // purple color
+  },
+  // style for active live sharing - brighter purple to show it's active
+  liveSharingActive: {
+    backgroundColor: '#AF52DE', // brighter purple
   },
   // style for disabled buttons - gray and semi-transparent
   buttonDisabled: {
