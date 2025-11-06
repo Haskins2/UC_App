@@ -67,6 +67,10 @@
         "projectId": "8770e62f-7d89-41cc-b028-2bedc649856b"
       }
     },
-    "owner": "haskins2"
+    "owner": "haskins2",
+    "platforms": [
+      "ios",
+      "android"
+    ]
   }
 }
