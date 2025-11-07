@@ -46,19 +46,45 @@ function TrainCard({ train, index }: TrainCardProps) {
       entering={SlideInRight.duration(150).delay(index * 40).springify()}
       style={styles.trainCard}
     >
-      <Animated.View entering={FadeIn.duration(200).delay(index * 40)}>
-        <Text style={styles.trainTitle}>
-          {train.TrainType === 'Train' ? 'Commuter' : train.TrainType} to {train.Destination}
-        </Text>
-        <Text style={styles.text}>Due in: {train.DueIn} mins</Text>
-        <Text style={styles.text}>Direction: {train.Direction}</Text>
-        {lateValue === 0 ? (
-          <Text style={styles.onTimeText}>On time</Text>
-        ) : (
-          <Text style={lateValue < 0 ? styles.earlyText : styles.lateText}>
-            {lateValue < 0 ? 'Early' : 'Late'}: {Math.abs(lateValue)} mins
+      <Animated.View entering={FadeIn.duration(200).delay(index * 40)} style={styles.trainCardContent}>
+        <View style={styles.trainInfo}>
+          <Text style={styles.trainTitle}>
+            {train.TrainType === 'Train'
+              ? `Commuter to ${train.Destination}`
+              : train.TrainType === 'DART'
+              ? train.Destination
+              : `${train.TrainType} to ${train.Destination}`}
           </Text>
-        )}
+          <Text style={styles.text}>
+            {train.Direction}
+          </Text>
+
+          {lateValue === 0 ? (
+            <Text style={styles.onTimeText}>On time</Text>
+          ) : (
+            <Text style={lateValue < 0 ? styles.earlyText : styles.lateText}>
+              {lateValue < 0 ? 'Early' : 'Late'}: {Math.abs(lateValue)} mins
+            </Text>
+          )}
+        </View>
+
+        {/* Light vertical separator between info and minutes */}
+        <View
+          style={{
+            width: PixelRatio.roundToNearestPixel(1),
+            height: '80%',
+            backgroundColor: 'rgba(255,255,255,0.12)',
+            marginHorizontal: PixelRatio.roundToNearestPixel(10),
+            alignSelf: 'center',
+            minWidth: PixelRatio.roundToNearestPixel(2),
+            borderRadius: 1,
+          }}
+        />
+
+        <View style={styles.dueInContainer}>
+          <Text style={styles.dueInNumber}>{train.DueIn}</Text>
+          <Text style={styles.dueInLabel}>mins</Text>
+        </View>
       </Animated.View>
     </Animated.View>
   );
@@ -294,7 +320,7 @@ export default function TimeTable() {
         {closestStation && (
           <>
             <Animated.View entering={FadeInDown.duration(500).delay(100)}>
-              <Text style={styles.heading}>
+              {/* <Text style={styles.heading}>
                 Closest DART station: {closestStation.StationDesc}
               </Text>
             
@@ -302,7 +328,7 @@ export default function TimeTable() {
                 <Text style={styles.subheading}>
                   ~{walkingTime} mins Walk
                 </Text>
-              )}
+              )} */}
             </Animated.View>
 
             {/* Dropdown for station selection */}
@@ -362,13 +388,15 @@ export default function TimeTable() {
                 <Text style={styles.text}>No trains scheduled</Text>
               </Animated.View>
             ) : (
-              showTrains && trains.map((train, index) => (
-                <TrainCard
-                  key={`${animationKey}-${train.TrainCode}-${index}`}
-                  train={train}
-                  index={index}
-                />
-              ))
+              showTrains && trains
+                .sort((a, b) => parseInt(a.DueIn) - parseInt(b.DueIn))
+                .map((train, index) => (
+                  <TrainCard
+                    key={`${animationKey}-${train.TrainCode}-${index}`}
+                    train={train}
+                    index={index}
+                  />
+                ))
             )}
           </>
         )}
@@ -406,8 +434,17 @@ const styles = StyleSheet.create({
     padding: PixelRatio.roundToNearestPixel(15),
     borderRadius: PixelRatio.roundToNearestPixel(8),
     marginBottom: PixelRatio.roundToNearestPixel(10),
-    borderWidth: StyleSheet.hairlineWidth, // 1 physical pixel border
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#4a4f57',
+  },
+  trainCardContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  trainInfo: {
+    flex: 1,
+    marginRight: PixelRatio.roundToNearestPixel(15),
   },
   trainTitle: {
     color: '#fff',
@@ -449,7 +486,7 @@ const styles = StyleSheet.create({
   },
   dropdownText: {
     color: '#fff',
-    fontSize: PixelRatio.roundToNearestPixel(16),
+    fontSize: PixelRatio.roundToNearestPixel(20),
   },
   dropdownArrow: {
     color: '#fff',
@@ -479,7 +516,7 @@ const styles = StyleSheet.create({
   },
   optionText: {
     color: '#fff',
-    fontSize: PixelRatio.roundToNearestPixel(16),
+    fontSize: PixelRatio.roundToNearestPixel(18),
   },
   selectedOption: {
     backgroundColor: '#4a5f77',
@@ -487,5 +524,21 @@ const styles = StyleSheet.create({
   selectedOptionText: {
     color: '#51cf66',
     fontWeight: 'bold',
+  },
+  dueInContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: PixelRatio.roundToNearestPixel(60),
+  },
+  dueInNumber: {
+    color: '#fff',
+    fontSize: PixelRatio.roundToNearestPixel(36),
+    fontWeight: 'bold',
+    lineHeight: PixelRatio.roundToNearestPixel(40),
+  },
+  dueInLabel: {
+    color: '#aaa',
+    fontSize: PixelRatio.roundToNearestPixel(12),
+    marginTop: PixelRatio.roundToNearestPixel(-4),
   },
 });
