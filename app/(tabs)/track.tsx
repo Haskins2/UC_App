@@ -1,8 +1,40 @@
 import { Text, View, StyleSheet, ScrollView } from 'react-native';
 import { useState } from 'react';
 
+export const DART_STATION_CODES: Record<string, string> = {
+  Malahide: "MLHDE",
+  Portmarnock: "PMRNK",
+  Clongriffin: "CLGRF",
+  "Howth Junction & Donaghmede": "HWTHJ",
+  Kilbarrack: "KBRCK",
+  Raheny: "RAHNY",
+  Harmonstown: "HTOWN",
+  Killester: "KLSTR",
+  "Clontarf Road": "CTARF",
+  Connolly: "CNLLY",
+  "Tara Street": "TARA",
+  Pearse: "PERSE",
+  "Grand Canal Dock": "GCDK",
+  "Lansdowne Road": "LDWNE",
+  Sandymount: "SMONT",
+  "Sydney Parade": "SIDNY",
+  Booterstown: "BTSTN",
+  Blackrock: "BROCK",
+  Seapoint: "SEAPT",
+  "Salthill & Monkstown": "SHILL",
+  "Dun Laoghaire": "DLERY",
+  "Sandycove & Glasthule": "SCOVE",
+  Glenageary: "GLGRY",
+  Dalkey: "DLKEY",
+  Killiney: "KILNY",
+  Shankill: "SKILL",
+  Woodbrook: "WBROK",
+  "Bray Daly": "BRAY",
+  Greystones: "GSTNS",
+};
+
 export default function TrackingScreen() {
-  const stations = Array.from({ length: 32 }, (_, i) => `Station ${i + 1}`);
+  const stations = Object.keys(DART_STATION_CODES);
   const [dartPosition, setDartPosition] = useState(6.5); // Position between stations (0-31)
 
   return (
