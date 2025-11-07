@@ -51,8 +51,8 @@ export default function TrackingScreen() {
   useEffect(() => {
     const updateTrainPosition = async () => {
       try {
-        // console.log('\n--- Fetching train position ---');
-        const movements = await getTrainMovements('E246');
+        console.log('\n--- Fetching train position ---');
+        const movements = await getTrainMovements('E129');
         
         if (movements.length === 0) {
           console.log('No movement data found');
@@ -60,8 +60,8 @@ export default function TrackingScreen() {
         }
 
         const position = calculateTrainPosition(movements);
-        // console.log(`Setting dart position to: ${position.position.toFixed(2)}`);
-        // console.log(`Is at station: ${position.isAtStation}`);
+        console.log(`Setting dart position to: ${position.position.toFixed(2)}`);
+        console.log(`Is at station: ${position.isAtStation}`);
         
         // Convert position to 0-based index (position comes as 1-32, we need 0-31)
         const internalPosition = position.position - 1;
@@ -88,14 +88,14 @@ export default function TrackingScreen() {
             setStationArrivalTime(Date.now());
             setCurrentStationPosition(roundedPosition);
             animatedPosition.value = roundedPosition;
-            // console.log(`Arrived at station ${roundedPosition}, starting 20s delay`);
+            console.log(`Arrived at station ${roundedPosition}, starting 20s delay`);
           } else if (stationArrivalTime) {
             // Check if 20 seconds have passed
             const timeAtStation = Date.now() - stationArrivalTime;
             if (timeAtStation < 20000) {
               // Still within 20 second delay - stay at station
               animatedPosition.value = roundedPosition;
-              // console.log(`Waiting at station, ${((20000 - timeAtStation) / 1000).toFixed(1)}s remaining`);
+              console.log(`Waiting at station, ${((20000 - timeAtStation) / 1000).toFixed(1)}s remaining`);
             }
             // After 20 seconds, we fall through to not update position
             // until train actually starts moving (isAtStation becomes false)
