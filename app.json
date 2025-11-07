@@ -65,8 +65,13 @@
       "router": {},
       "eas": {
         "projectId": "8770e62f-7d89-41cc-b028-2bedc649856b"
-      }
+      },
+      "OPENROUTESERVICE_API_KEY": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjdjNzYzNmEzMDI2ZTQ0MTViNGIwYWI3ZmZjZDhlNDRmIiwiaCI6Im11cm11cjY0In0="
     },
-    "owner": "haskins2"
+    "owner": "haskins2",
+    "platforms": [
+      "ios",
+      "android"
+    ]
   }
 }

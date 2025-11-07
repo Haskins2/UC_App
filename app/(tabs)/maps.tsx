@@ -1,5 +1,5 @@
-import { Text, View, StyleSheet, Platform, Image } from 'react-native';
-import MapView, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
+import { Text, View, StyleSheet, Image, Platform } from 'react-native';
+import MapView, { Marker, Polyline, Polygon } from 'react-native-maps';
 import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import { getAllStations, Station } from '@/utils/irishRailApi';
@@ -19,12 +19,24 @@ export default function MapsScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [stations, setStations] = useState<Station[]>([]);
+  const [railNetwork, setRailNetwork] = useState<any>(null);
   const [initialRegion, setInitialRegion] = useState<{
     latitude: number;
     longitude: number;
     latitudeDelta: number;
     longitudeDelta: number;
   } | null>(null);
+
+  // Load local GeoJSON as JSON (use relative path instead of '@' alias)
+  useEffect(() => {
+    try {
+      const data = require('../../assets/rail_network.json');
+      setRailNetwork(data);
+    } catch (e) {
+      console.error('Error loading rail network JSON. Ensure assets/rail_network.json exists.', e);
+      setErrorMsg('Could not load rail network data. Ensure assets/rail_network.json exists.');
+    }
+  }, []);
 
   // Fetch stations once when component mounts
   useEffect(() => {
@@ -87,16 +99,98 @@ export default function MapsScreen() {
     };
   }, [initialRegion]);
 
+  // Helper to render one GeoJSON feature
+  const renderFeature = (feature: any, idx: number) => {
+    const { type, coordinates } = feature?.geometry || {};
+    if (!type || !coordinates) return null;
+
+    const toLatLng = (c: number[]) => ({ latitude: c[1], longitude: c[0] });
+
+    switch (type) {
+      case 'LineString':
+        return (
+          <Polyline
+            key={`ls-${idx}`}
+            coordinates={coordinates.map(toLatLng)}
+            strokeColor="#1E88E5"
+            strokeWidth={3}
+          />
+        );
+      case 'MultiLineString':
+        return coordinates.map((line: number[][], i: number) => (
+          <Polyline
+            key={`mls-${idx}-${i}`}
+            coordinates={line.map(toLatLng)}
+            strokeColor="#1E88E5"
+            strokeWidth={3}
+          />
+        ));
+      case 'Polygon': {
+        const outer = (coordinates[0] || []).map(toLatLng);
+        const holes = (coordinates.slice(1) || []).map((ring: number[][]) => ring.map(toLatLng));
+        return (
+          <Polygon
+            key={`pg-${idx}`}
+            coordinates={outer}
+            holes={holes}
+            strokeColor="#1E88E5"
+            fillColor="rgba(30,136,229,0.15)"
+            strokeWidth={2}
+          />
+        );
+      }
+      case 'MultiPolygon':
+        return coordinates.map((poly: number[][][], i: number) => {
+          const outer = (poly[0] || []).map(toLatLng);
+          const holes = (poly.slice(1) || []).map((ring: number[][]) => ring.map(toLatLng));
+          return (
+            <Polygon
+              key={`mpg-${idx}-${i}`}
+              coordinates={outer}
+              holes={holes}
+              strokeColor="#1E88E5"
+              fillColor="rgba(30,136,229,0.15)"
+              strokeWidth={2}
+            />
+          );
+        });
+      case 'Point': {
+        const [lng, lat] = coordinates;
+        return (
+          <Marker
+            key={`pt-${idx}`}
+            coordinate={{ latitude: lat, longitude: lng }}
+            title={feature?.properties?.name}
+          />
+        );
+      }
+      case 'MultiPoint':
+        return coordinates.map((c: number[], i: number) => (
+          <Marker key={`mpt-${idx}-${i}`} coordinate={{ latitude: c[1], longitude: c[0] }} />
+        ));
+      default:
+        return null;
+    }
+  };
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Maps are only available on mobile devices</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {initialRegion ? (
         <MapView
           style={styles.map}
-          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
           initialRegion={initialRegion}
           showsUserLocation={true}
           followsUserLocation={false}
         >
+          {railNetwork?.features?.map((f: any, i: number) => renderFeature(f, i))}
           {stations.map((station) => (
             <Marker
               key={station.StationId}
@@ -175,5 +269,3 @@ const styles = StyleSheet.create({
     height: 40,
   },
 });
-
-
