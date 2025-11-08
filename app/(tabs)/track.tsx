@@ -1,10 +1,12 @@
 import { Text, View, StyleSheet, ScrollView } from 'react-native';
 import { useState, useEffect } from 'react';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
   withTiming,
-  Easing 
+  Easing,
 } from 'react-native-reanimated';
 import { getTrainMovements, calculateTrainPosition } from '../../services/trainService';
 
@@ -42,11 +44,30 @@ export const DART_STATION_CODES: Record<string, string> = {
 
 export default function TrackingScreen() {
   const stations = Object.keys(DART_STATION_CODES);
-  const animatedPosition = useSharedValue(0);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [trainPosition, setTrainPosition] = useState<number | null>(null);
+  const [direction, setDirection] = useState<'Northbound' | 'Southbound' | null>(null);
   const [isAtStation, setIsAtStation] = useState(false);
-  const [stationArrivalTime, setStationArrivalTime] = useState<number | null>(null);
-  const [currentStationPosition, setCurrentStationPosition] = useState<number | null>(null);
+  const [nextStopIndex, setNextStopIndex] = useState<number | null>(null);
+
+  // Animated value for flashing next stop
+  const flashOpacity = useSharedValue(1);
+
+  // Helper function to determine direction from destination
+  const getDirectionFromDestination = (destination: string): 'Northbound' | 'Southbound' | null => {
+    const dest = destination.toLowerCase();
+    
+    // Northbound destinations
+    if (dest.includes('malahide') || dest.includes('howth')) {
+      return 'Northbound';
+    }
+    
+    // Southbound destinations
+    if (dest.includes('greystones') || dest.includes('bray')) {
+      return 'Southbound';
+    }
+    
+    return null;
+  };
 
   useEffect(() => {
     const updateTrainPosition = async () => {
@@ -60,73 +81,36 @@ export default function TrackingScreen() {
         }
 
         const position = calculateTrainPosition(movements);
-        console.log(`Setting dart position to: ${position.position.toFixed(2)}`);
+        console.log(`Train position: ${position.position.toFixed(2)}`);
         console.log(`Is at station: ${position.isAtStation}`);
         
-        // Convert position to 0-based index (position comes as 1-32, we need 0-31)
+        // Determine direction from destination
+        const destination = movements[0]?.TrainDestination || '';
+        const trainDirection = getDirectionFromDestination(destination);
+        console.log(`Destination: ${destination}`);
+        console.log(`Direction: ${trainDirection}`);
+        
+        // Convert position to 0-based index
         const internalPosition = position.position - 1;
         
-        // For initial position, set immediately without animation
-        if (!isInitialized) {
-          animatedPosition.value = internalPosition;
-          setIsInitialized(true);
-          if (position.isAtStation) {
-            setIsAtStation(true);
-            setStationArrivalTime(Date.now());
-            setCurrentStationPosition(internalPosition);
-          } else {
-            setIsAtStation(false);
-          }
-        } else if (position.isAtStation) {
-          // Train is at a station
-          const roundedPosition = Math.round(internalPosition);
-          
-          // Check if this is a new station arrival
-          if (!isAtStation || currentStationPosition !== roundedPosition) {
-            // Just arrived at station - start 20 second timer
-            setIsAtStation(true);
-            setStationArrivalTime(Date.now());
-            setCurrentStationPosition(roundedPosition);
-            animatedPosition.value = roundedPosition;
-            console.log(`Arrived at station ${roundedPosition}, starting 20s delay`);
-          } else if (stationArrivalTime) {
-            // Check if 20 seconds have passed
-            const timeAtStation = Date.now() - stationArrivalTime;
-            if (timeAtStation < 20000) {
-              // Still within 20 second delay - stay at station
-              animatedPosition.value = roundedPosition;
-              console.log(`Waiting at station, ${((20000 - timeAtStation) / 1000).toFixed(1)}s remaining`);
-            }
-            // After 20 seconds, we fall through to not update position
-            // until train actually starts moving (isAtStation becomes false)
-          }
+        // Calculate next stop index
+        const currentIndex = Math.round(internalPosition);
+        let nextIndex: number;
+        
+        if (position.isAtStation) {
+          // If at station, next stop is in the direction of travel
+          nextIndex = trainDirection === 'Southbound' ? currentIndex + 1 : currentIndex - 1;
         } else {
-          // Train is moving (not at station)
-          setIsAtStation(false);
-          setStationArrivalTime(null);
-          setCurrentStationPosition(null);
-          
-          // Calculate duration based on expected arrival time
-          let animationDuration = 4500; // Default fallback
-          
-          if (position.expectedArrivalTime) {
-            const now = new Date();
-            const expectedArrival = new Date(position.expectedArrivalTime);
-            const timeUntilArrival = expectedArrival.getTime() - now.getTime();
-            
-            // Use the actual time until arrival, but cap it for reasonable animation
-            if (timeUntilArrival > 0 && timeUntilArrival < 300000) { // Max 5 minutes
-              animationDuration = timeUntilArrival;
-              // console.log(`Animating over ${(animationDuration / 1000).toFixed(1)}s to arrive at ${expectedArrival.toLocaleTimeString()}`);
-            }
-          }
-          
-          // Animate to new position with calculated duration
-          animatedPosition.value = withTiming(internalPosition, {
-            duration: animationDuration,
-            easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-          });
+          // If between stations, next stop is the one we're heading towards
+          nextIndex = trainDirection === 'Southbound' ? Math.ceil(internalPosition) : Math.floor(internalPosition);
         }
+        
+        console.log(`Current index: ${currentIndex}, Next stop index: ${nextIndex}`);
+        
+        setTrainPosition(internalPosition);
+        setDirection(trainDirection);
+        setIsAtStation(position.isAtStation);
+        setNextStopIndex(nextIndex);
       } catch (error) {
         console.error('Error updating train position:', error);
       }
@@ -139,82 +123,110 @@ export default function TrackingScreen() {
     const interval = setInterval(updateTrainPosition, 5000);
 
     return () => clearInterval(interval);
-  }, [isInitialized, isAtStation, stationArrivalTime, currentStationPosition]);
+  }, []);
+
+  useEffect(() => {
+    // Slower flashing animation for next stop
+    flashOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.4, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const getStationIndex = (pos: number) => Math.round(pos);
+
+  const isPastStop = (index: number): boolean => {
+    if (trainPosition === null || direction === null) return false;
+    const currentIndex = getStationIndex(trainPosition);
+    
+    if (direction === 'Southbound') {
+      return index < currentIndex;
+    } else {
+      return index > currentIndex;
+    }
+  };
+
+  const isPastSegment = (segmentIndex: number): boolean => {
+    if (trainPosition === null || direction === null) return false;
+    
+    // A segment connects station[segmentIndex] to station[segmentIndex+1]
+    // The segment should be green if the train has passed BOTH endpoints
+    
+    if (direction === 'Southbound') {
+      // For southbound, segment is past if train position > segmentIndex + 1
+      // This means train has passed both the start (segmentIndex) and end (segmentIndex + 1) of segment
+      return trainPosition > segmentIndex + 1;
+    } else {
+      // For northbound, segment is past if train position < segmentIndex
+      // This means train has passed both the end (segmentIndex + 1) and start (segmentIndex) of segment
+      return trainPosition < segmentIndex + 1;
+    }
+  };
+
+  const isNextStop = (index: number): boolean => {
+    return nextStopIndex === index && !isAtStation;
+  };
+
+  // Animated Station Marker Component
+  const AnimatedStationMarker = ({ stationIndex }: { stationIndex: number }) => {
+    const isPast = isPastStop(stationIndex);
+    const isNext = isNextStop(stationIndex);
+    const isCurrentStation = trainPosition !== null && 
+      isAtStation && 
+      getStationIndex(trainPosition) === stationIndex;
+
+    const animatedStyle = useAnimatedStyle(() => {
+      if (isNext) {
+        return {
+          backgroundColor: '#46d213ff',
+          borderColor: '#46d213ff',
+          opacity: flashOpacity.value,
+          transform: [{ scale: 1.3 }],
+        };
+      }
+      return {};
+    });
+
+    return (
+      <Animated.View style={[
+        styles.stationMarker,
+        (isPast || isCurrentStation) && styles.pastStationMarker,
+        animatedStyle
+      ]} />
+    );
+  };
 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {stations.map((station, index) => {
-          const AnimatedDart = () => {
-            const animatedStyle = useAnimatedStyle(() => {
-              // Calculate if DART should be in this station's segment
-              // Each station occupies position index to index+1
-              const segmentStart = index;
-              const segmentEnd = index + 1;
-              
-              // Check if train is in this segment
-              const isInSegment = animatedPosition.value >= segmentStart && animatedPosition.value < segmentEnd;
-              
-              if (!isInSegment) {
-                return {
-                  opacity: 0,
-                };
-              }
-              
-              // Calculate progress within this segment (0 to 1)
-              const segmentProgress = animatedPosition.value - segmentStart;
-              
-              // Calculate pixel position
-              const pixelPosition = segmentProgress * 80;
-              
-              return {
-                opacity: 1,
-                top: pixelPosition,
-                transform: [{ translateY: -28 }],
-              };
-            });
-
-            return (
-              <Animated.View style={[styles.dartContainer, animatedStyle]}>
-                <View style={styles.dartBox} />
-                <View style={styles.dartBox} />
-                <View style={styles.dartBox} />
-              </Animated.View>
-            );
-          };
-
-          const AnimatedStationMarker = ({ stationIndex }: { stationIndex: number }) => {
-            const animatedStyle = useAnimatedStyle(() => {
-              // Highlight station when train is very close (within 0.1 units)
-              const isActive = Math.abs(animatedPosition.value - stationIndex) < 0.1;
-              
-              return {
-                backgroundColor: isActive ? '#46d213ff' : '#fff',
-                borderColor: isActive ? '#46d213ff' : '#4a90e2',
-                transform: [{ scale: isActive ? 1.3 : 1 }],
-              };
-            });
-
-            return (
-              <Animated.View style={[styles.stationMarker, animatedStyle]} />
-            );
-          };
+          const isPast = isPastStop(index);
+          const isCurrentStation = trainPosition !== null && 
+            isAtStation && 
+            getStationIndex(trainPosition) === index;
+          
+          // Line segment from this station to the next
+          // Only color it green if train has completely passed this segment
+          const segmentPassed = isPastSegment(index);
 
           return (
             <View key={index} style={styles.stationContainer}>
-              {/* Station section - 80px total height */}
               <View style={styles.stationSection}>
-                {/* Station marker and label at the top */}
+                {/* Station marker and label */}
                 <View style={styles.stationWrapper}>
-                  <View style={styles.lineSegment} />
+                  <View style={[
+                    styles.lineSegment,
+                    segmentPassed && styles.pastLineSegment
+                  ]} />
                   <AnimatedStationMarker stationIndex={index} />
                   <Text style={styles.stationText}>
                     {station}
                   </Text>
                 </View>
-                
-                {/* Only render DART when not at station and not last station */}
-                {index < stations.length - 1 && !isAtStation && <AnimatedDart />}
               </View>
             </View>
           );
@@ -259,6 +271,9 @@ const styles = StyleSheet.create({
     height: 80,
     backgroundColor: '#4a90e2',
   },
+  pastLineSegment: {
+    backgroundColor: '#46d213ff',
+  },
   stationMarker: {
     width: 16,
     height: 16,
@@ -269,6 +284,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 1,
   },
+  pastStationMarker: {
+    backgroundColor: '#46d213ff',
+    borderColor: '#46d213ff',
+    transform: [{ scale: 1.3 }],
+  },
   stationText: {
     color: '#fff',
     fontSize: 14,
@@ -277,17 +297,15 @@ const styles = StyleSheet.create({
     top: -8,
     width: 200,
   },
-  dartContainer: {
+  arrowContainer: {
     position: 'absolute',
-    flexDirection: 'column',
+    left: -2,
+    top: 30,
     zIndex: 2,
-    left: 6,
   },
-  dartBox: {
-    width: 10,
-    height: 15,
-    backgroundColor: '#46d213ff',
-    borderRadius: 1,
-    marginVertical: 1,
-  }
+  arrow: {
+    fontSize: 48,
+    color: '#46d213ff',
+    fontWeight: 'bold',
+  },
 });
