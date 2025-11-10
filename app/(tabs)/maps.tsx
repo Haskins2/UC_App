@@ -1,14 +1,17 @@
-import { Text, View, StyleSheet, Image, Platform } from 'react-native';
-import MapView, { Marker, Polyline, Polygon } from 'react-native-maps';
-import { useState, useEffect } from 'react';
-import * as Location from 'expo-location';
-import { getAllStations, Station } from '@/utils/irishRailApi';
+import { Text, View, StyleSheet, Image, Platform } from "react-native";
+import MapView, { Marker, Polyline, Polygon } from "react-native-maps";
+import { useState, useEffect } from "react";
+import * as Location from "expo-location";
+import {
+  getAllStations,
+  Station,
+} from "@/utils/IrishRailAPI/returnAllStations";
 
 // Train station icon component using custom image
 const TrainIcon = () => (
   <View style={styles.markerContainer}>
-    <Image 
-      source={require('@/assets/dart_icon.jpeg')}
+    <Image
+      source={require("@/assets/dart_icon.jpeg")}
       style={styles.trainIconImage}
       resizeMode="contain"
     />
@@ -16,7 +19,9 @@ const TrainIcon = () => (
 );
 
 export default function MapsScreen() {
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [location, setLocation] = useState<Location.LocationObject | null>(
+    null
+  );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [stations, setStations] = useState<Station[]>([]);
   const [railNetwork, setRailNetwork] = useState<any>(null);
@@ -30,11 +35,16 @@ export default function MapsScreen() {
   // Load local GeoJSON as JSON (use relative path instead of '@' alias)
   useEffect(() => {
     try {
-      const data = require('../../assets/rail_network.json');
+      const data = require("../../assets/rail_network.json");
       setRailNetwork(data);
     } catch (e) {
-      console.error('Error loading rail network JSON. Ensure assets/rail_network.json exists.', e);
-      setErrorMsg('Could not load rail network data. Ensure assets/rail_network.json exists.');
+      console.error(
+        "Error loading rail network JSON. Ensure assets/rail_network.json exists.",
+        e
+      );
+      setErrorMsg(
+        "Could not load rail network data. Ensure assets/rail_network.json exists."
+      );
     }
   }, []);
 
@@ -45,7 +55,7 @@ export default function MapsScreen() {
         const stationData = await getAllStations();
         setStations(stationData);
       } catch (error) {
-        console.error('Error fetching stations:', error);
+        console.error("Error fetching stations:", error);
       }
     };
 
@@ -58,9 +68,9 @@ export default function MapsScreen() {
     const startLocationTracking = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        
-        if (status !== 'granted') {
-          setErrorMsg('Permission to access location was denied');
+
+        if (status !== "granted") {
+          setErrorMsg("Permission to access location was denied");
           return;
         }
 
@@ -85,7 +95,7 @@ export default function MapsScreen() {
           }
         );
       } catch (error) {
-        setErrorMsg('Error getting location: ' + (error as Error).message);
+        setErrorMsg("Error getting location: " + (error as Error).message);
       }
     };
 
@@ -107,7 +117,7 @@ export default function MapsScreen() {
     const toLatLng = (c: number[]) => ({ latitude: c[1], longitude: c[0] });
 
     switch (type) {
-      case 'LineString':
+      case "LineString":
         return (
           <Polyline
             key={`ls-${idx}`}
@@ -116,7 +126,7 @@ export default function MapsScreen() {
             strokeWidth={3}
           />
         );
-      case 'MultiLineString':
+      case "MultiLineString":
         return coordinates.map((line: number[][], i: number) => (
           <Polyline
             key={`mls-${idx}-${i}`}
@@ -125,9 +135,11 @@ export default function MapsScreen() {
             strokeWidth={3}
           />
         ));
-      case 'Polygon': {
+      case "Polygon": {
         const outer = (coordinates[0] || []).map(toLatLng);
-        const holes = (coordinates.slice(1) || []).map((ring: number[][]) => ring.map(toLatLng));
+        const holes = (coordinates.slice(1) || []).map((ring: number[][]) =>
+          ring.map(toLatLng)
+        );
         return (
           <Polygon
             key={`pg-${idx}`}
@@ -139,10 +151,12 @@ export default function MapsScreen() {
           />
         );
       }
-      case 'MultiPolygon':
+      case "MultiPolygon":
         return coordinates.map((poly: number[][][], i: number) => {
           const outer = (poly[0] || []).map(toLatLng);
-          const holes = (poly.slice(1) || []).map((ring: number[][]) => ring.map(toLatLng));
+          const holes = (poly.slice(1) || []).map((ring: number[][]) =>
+            ring.map(toLatLng)
+          );
           return (
             <Polygon
               key={`mpg-${idx}-${i}`}
@@ -154,7 +168,7 @@ export default function MapsScreen() {
             />
           );
         });
-      case 'Point': {
+      case "Point": {
         const [lng, lat] = coordinates;
         return (
           <Marker
@@ -164,18 +178,21 @@ export default function MapsScreen() {
           />
         );
       }
-      case 'MultiPoint':
+      case "MultiPoint":
         return coordinates.map((c: number[], i: number) => (
-          <Marker key={`mpt-${idx}-${i}`} coordinate={{ latitude: c[1], longitude: c[0] }} />
+          <Marker
+            key={`mpt-${idx}-${i}`}
+            coordinate={{ latitude: c[1], longitude: c[0] }}
+          />
         ));
       default:
         return null;
     }
   };
 
-  if (Platform.OS === 'web') {
+  if (Platform.OS === "web") {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <Text>Maps are only available on mobile devices</Text>
       </View>
     );
@@ -190,7 +207,9 @@ export default function MapsScreen() {
           showsUserLocation={true}
           followsUserLocation={false}
         >
-          {railNetwork?.features?.map((f: any, i: number) => renderFeature(f, i))}
+          {railNetwork?.features?.map((f: any, i: number) =>
+            renderFeature(f, i)
+          )}
           {stations.map((station) => (
             <Marker
               key={station.StationId}
@@ -222,47 +241,47 @@ export default function MapsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#25292e',
+    backgroundColor: "#25292e",
   },
   map: {
     flex: 1,
   },
   text: {
-    color: '#fff',
+    color: "#fff",
   },
   errorContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(255, 59, 48, 0.9)',
+    backgroundColor: "rgba(255, 59, 48, 0.9)",
     padding: 15,
     borderRadius: 8,
   },
   errorText: {
-    color: '#fff',
-    textAlign: 'center',
+    color: "#fff",
+    textAlign: "center",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   markerContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: 'white',
+    overflow: "hidden",
+    backgroundColor: "white",
     borderWidth: 2,
-    borderColor: '#2196F3',
-    shadowColor: '#000',
+    borderColor: "#2196F3",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   trainIconImage: {
     width: 40,
