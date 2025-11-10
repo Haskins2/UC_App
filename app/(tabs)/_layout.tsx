@@ -46,11 +46,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="track"
+        name="gps"
         options={{
-          title: 'Track',
+          title: 'Gps',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'information-circle' : 'information-circle-outline'} color={color} size={24}/>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="trains"
+        options={{
+          title: 'Trains',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'train-sharp' : 'train-outline'} color={color} size={24} />
           ),
         }}
       />
