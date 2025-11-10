@@ -1,7 +1,17 @@
-import { Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Link } from 'expo-router';
-import { useState } from 'react';
-import Animated, { useAnimatedStyle, withTiming, useSharedValue } from 'react-native-reanimated';
+import {
+  Text,
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
+import { Link } from "expo-router";
+import { useState } from "react";
+import Animated, {
+  useAnimatedStyle,
+  withTiming,
+  useSharedValue,
+} from "react-native-reanimated";
 
 export const DART_STATION_CODES: Record<string, string> = {
   Malahide: "MLHDE",
@@ -36,6 +46,7 @@ export const DART_STATION_CODES: Record<string, string> = {
 };
 
 export default function Home() {
+  // create a mapping of station names & codes, using codes as index
   const options = Object.keys(DART_STATION_CODES)
     .sort((a, b) => a.localeCompare(b))
     .map((stationName, index) => ({
@@ -43,15 +54,19 @@ export default function Home() {
       label: stationName,
     }));
 
-  const [selectedOption, setSelectedOption] = useState('Select a station');
+  const [selectedOption, setSelectedOption] = useState("Select a station");
   const [isOpen, setIsOpen] = useState(false);
   const rotation = useSharedValue(0);
   const height = useSharedValue(0);
 
   const toggleDropdown = () => {
     setIsOpen(!isOpen);
+    // using react-reanimated, rotate the arrow icon
     rotation.value = withTiming(isOpen ? 0 : 180, { duration: 300 });
-    height.value = withTiming(isOpen ? 0 : Math.min(options.length * 50, 300), { duration: 300 });
+    // control the height of the dropdown options menu
+    height.value = withTiming(isOpen ? 0 : Math.min(options.length * 50, 300), {
+      duration: 300,
+    });
   };
 
   const handleSelect = (option: string) => {
@@ -59,6 +74,7 @@ export default function Home() {
     toggleDropdown();
   };
 
+  //reanimated settings
   const arrowStyle = useAnimatedStyle(() => {
     return {
       transform: [{ rotate: `${rotation.value}deg` }],
@@ -91,7 +107,9 @@ export default function Home() {
             onPress={toggleDropdown}
           >
             <Text style={styles.dropdownText}>{selectedOption}</Text>
-            <Animated.Text style={[styles.dropdownArrow, arrowStyle]}>▼</Animated.Text>
+            <Animated.Text style={[styles.dropdownArrow, arrowStyle]}>
+              ▼
+            </Animated.Text>
           </TouchableOpacity>
         </Animated.View>
 
@@ -110,7 +128,6 @@ export default function Home() {
           </ScrollView>
         </Animated.View>
       </View>
-
     </View>
   );
 }
@@ -118,59 +135,60 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#25292e',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#25292e",
+    alignItems: "center",
+    justifyContent: "center",
   },
   text: {
-    color: '#fff',
+    color: "#fff",
   },
   button: {
     fontSize: 20,
-    textDecorationLine: 'underline',
-    color: '#fff',
+    textDecorationLine: "underline",
+    color: "#fff",
   },
   dropdownWrapper: {
-    width: '80%',
+    width: "80%",
     marginVertical: 20,
   },
   dropdown: {
-    backgroundColor: '#3a3f47',
+    backgroundColor: "#3a3f47",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#4a5057',
+    borderColor: "#4a5057",
   },
   dropdownTouchable: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 15,
   },
   dropdownText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
   },
   dropdownArrow: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 12,
   },
   optionsContainer: {
-    backgroundColor: '#3a3f47',
+    backgroundColor: "#3a3f47",
     borderBottomLeftRadius: 8,
     borderBottomRightRadius: 8,
     borderWidth: 1,
     borderTopWidth: 0,
-    borderColor: '#4a5057',
-    overflow: 'hidden',
-    maxHeight: 300,
+    borderColor: "#4a5057",
+    overflow: "hidden",
+    minHeight: 400,
+    maxHeight: 800,
   },
   option: {
     padding: 15,
     borderTopWidth: 1,
-    borderTopColor: '#4a5057',
+    borderTopColor: "#4a5057",
   },
   optionText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
   },
 });

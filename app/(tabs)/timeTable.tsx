@@ -1,8 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Text, View, StyleSheet, ScrollView, PixelRatio, TouchableOpacity, RefreshControl } from 'react-native';
-import Animated, { 
-  FadeIn, 
-  FadeInDown, 
+import { useState, useEffect, useCallback } from "react";
+import {
+  Text,
+  View,
+  StyleSheet,
+  ScrollView,
+  PixelRatio,
+  TouchableOpacity,
+  RefreshControl,
+} from "react-native";
+import Animated, {
+  FadeIn,
+  FadeInDown,
   FadeInUp,
   SlideInRight,
   useAnimatedStyle,
@@ -13,80 +21,122 @@ import Animated, {
   withDelay,
   withSpring,
   Easing,
-  runOnJS
-} from 'react-native-reanimated';
-import * as Location from 'expo-location';
-import { getAllStations, Station } from '@/utils/irishRailApi';
-import { getStationDataByCode, TrainData } from '@/utils/irishRailStationData';
-import { getWalkingRoute, metersToKm, secondsToMinutes } from '@/utils/openRouteService';
-import { DART_STATION_CODES } from './home';
-
+  runOnJS,
+} from "react-native-reanimated";
+import * as Location from "expo-location";
+import {
+  getAllStations,
+  Station,
+} from "@/utils/IrishRailAPI/returnAllStations";
+import {
+  getStationDataByCode,
+  TrainData,
+} from "@/utils/IrishRailAPI/returnStationData";
+import {
+  getWalkingRoute,
+  metersToKm,
+  secondsToMinutes,
+} from "@/utils/returnWalkingData";
+import { DART_STATION_CODES } from "./home";
+import { getDistance } from "geolib";
+import { useRouter } from "expo-router";
 
 // Configuration
 const TRAIN_LOOKUP_MINUTES = 60; // Minutes to look ahead for trains
 
-//  Euclidean approximation
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const kmPerDegreeLat = 111; // approximate km per degree of latitude
-  const kmPerDegreeLon = 111 * Math.cos(lat1 * Math.PI / 180); // adjust for longitude at this latitude
-  
-  const dLat = (lat2 - lat1) * kmPerDegreeLat;
-  const dLon = (lon2 - lon1) * kmPerDegreeLon;
-  
-  return Math.sqrt(dLat * dLat + dLon * dLon);
+//  geolib function to find closest station
+function calculateDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  return (
+    getDistance(
+      { latitude: lat1, longitude: lon1 },
+      { latitude: lat2, longitude: lon2 }
+    ) / 1000
+  );
+}
+
+function printToConsole(train: TrainData, index: number) {
+  console.log("Clicked on:", train.Destination, " -- index:", index);
+
+  router.push("/trains");
 }
 
 // Reusable train card component
 type TrainCardProps = { train: TrainData; index: number };
 
 function TrainCard({ train, index }: TrainCardProps) {
+  const router = useRouter();
   const lateValue = parseInt(train.Late) || 0;
+
+  const handleCardPress = () => {
+    console.log("Clicked on:", train.Destination, " -- index:", index);
+    router.push({
+      pathname: "/trains",
+      params: { destination: train.Destination, trainCode: train.TrainCode },
+    });
+  };
+
   return (
-    <Animated.View
-      entering={SlideInRight.duration(150).delay(index * 40).springify()}
-      style={styles.trainCard}
+    // loading animation (slide in)
+
+    <TouchableOpacity
+      // pass definition of function to prevent from running immediately
+      // especially when given arguements
+      onPress={() => handleCardPress()}
     >
-      <Animated.View entering={FadeIn.duration(200).delay(index * 40)} style={styles.trainCardContent}>
-        <View style={styles.trainInfo}>
-          <Text style={styles.trainTitle}>
-            {train.TrainType === 'Train'
-              ? `Commuter to ${train.Destination}`
-              : train.TrainType === 'DART'
-              ? train.Destination
-              : `${train.TrainType} to ${train.Destination}`}
-          </Text>
-          <Text style={styles.text}>
-            {train.Direction}
-          </Text>
-
-          {lateValue === 0 ? (
-            <Text style={styles.onTimeText}>On time</Text>
-          ) : (
-            <Text style={lateValue < 0 ? styles.earlyText : styles.lateText}>
-              {lateValue < 0 ? 'Early' : 'Late'}: {Math.abs(lateValue)} mins
+      <Animated.View
+        entering={SlideInRight.duration(150)
+          .delay(index * 40)
+          .springify()}
+        style={styles.trainCard}
+      >
+        {/* fade in */}
+        <Animated.View
+          entering={FadeIn.duration(200).delay(index * 40)}
+          style={styles.trainCardContent}
+        >
+          {/* card contents */}
+          <View style={styles.trainInfo}>
+            <Text style={styles.trainTitle}>
+              {train.TrainType === "Train"
+                ? `Commuter to ${train.Destination}`
+                : train.TrainType === "DART"
+                ? train.Destination
+                : `${train.TrainType} to ${train.Destination}`}
             </Text>
-          )}
-        </View>
-
-        {/* Light vertical separator between info and minutes */}
-        <View
-          style={{
-            width: PixelRatio.roundToNearestPixel(1),
-            height: '80%',
-            backgroundColor: 'rgba(255,255,255,0.12)',
-            marginHorizontal: PixelRatio.roundToNearestPixel(10),
-            alignSelf: 'center',
-            minWidth: PixelRatio.roundToNearestPixel(2),
-            borderRadius: 1,
-          }}
-        />
-
-        <View style={styles.dueInContainer}>
-          <Text style={styles.dueInNumber}>{train.DueIn}</Text>
-          <Text style={styles.dueInLabel}>mins</Text>
-        </View>
+            <Text style={styles.text}>{train.Direction}</Text>
+            {/* train status */}
+            {lateValue === 0 ? (
+              <Text style={styles.onTimeText}>On time</Text>
+            ) : (
+              <Text style={lateValue < 0 ? styles.earlyText : styles.lateText}>
+                {lateValue < 0 ? "Early" : "Late"}: {Math.abs(lateValue)} mins
+              </Text>
+            )}
+          </View>
+          {/* vertical separator */}
+          <View
+            style={{
+              width: PixelRatio.roundToNearestPixel(1),
+              height: "80%",
+              backgroundColor: "rgba(255,255,255,0.12)",
+              marginHorizontal: PixelRatio.roundToNearestPixel(10),
+              alignSelf: "center",
+              minWidth: PixelRatio.roundToNearestPixel(2),
+              borderRadius: 1,
+            }}
+          />
+          <View style={styles.dueInContainer}>
+            <Text style={styles.dueInNumber}>{train.DueIn}</Text>
+            <Text style={styles.dueInLabel}>mins</Text>
+          </View>
+        </Animated.View>
       </Animated.View>
-    </Animated.View>
+    </TouchableOpacity>
   );
 }
 
@@ -94,10 +144,10 @@ export default function TimeTable() {
   // [current_value, function_to_update_value] = ReactHook<Type>(initial_value)
   const [closestStation, setClosestStation] = useState<Station | null>(null);
   // example call: setClosestStation(closest)
-  
+
   const [trains, setTrains] = useState<TrainData[]>([]);
-  const [walkingDistance, setWalkingDistance] = useState<string>('');
-  const [walkingTime, setWalkingTime] = useState<string>('');
+  const [walkingDistance, setWalkingDistance] = useState<string>("");
+  const [walkingTime, setWalkingTime] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [loadingTrains, setLoadingTrains] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,21 +156,20 @@ export default function TimeTable() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Dropdown state
-  const [selectedStation, setSelectedStation] = useState<string>('');
+  const [selectedStation, setSelectedStation] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
   const rotation = useSharedValue(0);
   const dropdownHeight = useSharedValue(0);
 
   const options = Object.keys(DART_STATION_CODES)
-    // .sort((a, b) => a.localeCompare(b))
+    // .sort((a, b) => a.localeCompare(b)) // to sort stations in alphabetical order
     .map((stationName, index) => ({
       id: String(index + 1),
       label: stationName,
     }));
 
-  // Animated value for loading pulse
+  // loading pulse
   const loadingOpacity = useSharedValue(1);
-
   useEffect(() => {
     // Start loading animation
     loadingOpacity.value = withRepeat(
@@ -160,7 +209,10 @@ export default function TimeTable() {
   const toggleDropdown = () => {
     setIsOpen(!isOpen);
     rotation.value = withTiming(isOpen ? 0 : 180, { duration: 300 });
-    dropdownHeight.value = withTiming(isOpen ? 0 : Math.min(options.length * 50, 300), { duration: 300 });
+    dropdownHeight.value = withTiming(
+      isOpen ? 0 : Math.min(options.length * 50, 300),
+      { duration: 300 }
+    );
   };
 
   const handleStationSelect = (stationName: string) => {
@@ -169,7 +221,7 @@ export default function TimeTable() {
     // Hide trains momentarily, then reset animation key
     setShowTrains(false);
     setTimeout(() => {
-      setAnimationKey(prev => prev + 1);
+      setAnimationKey((prev) => prev + 1);
       setShowTrains(true);
     }, 100);
   };
@@ -177,15 +229,18 @@ export default function TimeTable() {
   // Function to fetch trains for current station
   const fetchTrains = useCallback(async () => {
     if (!selectedStation) return;
-    
+
     try {
       setLoadingTrains(true);
       const stationCode = DART_STATION_CODES[selectedStation];
-      const trainData = await getStationDataByCode(stationCode, TRAIN_LOOKUP_MINUTES);
+      const trainData = await getStationDataByCode(
+        stationCode,
+        TRAIN_LOOKUP_MINUTES
+      );
       setTrains(trainData);
     } catch (err) {
-      console.error('Failed to fetch train data:', err);
-      setError('Failed to fetch train data');
+      console.error("Failed to fetch train data:", err);
+      setError("Failed to fetch train data");
     } finally {
       setLoadingTrains(false);
     }
@@ -197,7 +252,7 @@ export default function TimeTable() {
     setShowTrains(false);
     await fetchTrains();
     setTimeout(() => {
-      setAnimationKey(prev => prev + 1);
+      setAnimationKey((prev) => prev + 1);
       setShowTrains(true);
       setRefreshing(false);
     }, 100);
@@ -224,8 +279,8 @@ export default function TimeTable() {
       try {
         // Request location permissions
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setError('Permission to access location was denied');
+        if (status !== "granted") {
+          setError("Permission to access location was denied");
           setLoading(false);
           return;
         }
@@ -272,7 +327,7 @@ export default function TimeTable() {
             setWalkingDistance(metersToKm(walkingRoute.distance));
             setWalkingTime(secondsToMinutes(walkingRoute.duration));
           } catch (walkError) {
-            console.error('Failed to get walking route:', walkError);
+            console.error("Failed to get walking route:", walkError);
             // Fallback to straight-line estimate
             setWalkingDistance((minDistance * 1.4).toFixed(2));
             setWalkingTime(Math.round(minDistance * 1.4 * 12).toString()); // ~12 min per km
@@ -286,7 +341,7 @@ export default function TimeTable() {
           setTrains(trainData);
         }
       } catch (err) {
-        setError('Failed to find closest station');
+        setError("Failed to find closest station");
         console.error(err);
       } finally {
         setLoading(false);
@@ -297,42 +352,29 @@ export default function TimeTable() {
   }, []);
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
           tintColor="#fff"
-          colors={['#fff']}
+          colors={["#fff"]}
         />
       }
     >
       <View style={styles.content}>
+        {/* {Kinda choppy once loaded} */}
         {loading && (
           <Animated.View style={loadingAnimatedStyle}>
             <Text style={styles.text}>Finding closest station...</Text>
           </Animated.View>
         )}
-        {error && (
-          <Text style={styles.text}>{error}</Text>
-        )}
+        {error && <Text style={styles.text}>{error}</Text>}
         {closestStation && (
           <>
-            <Animated.View entering={FadeInDown.duration(500).delay(100)}>
-              {/* <Text style={styles.heading}>
-                Closest DART station: {closestStation.StationDesc}
-              </Text>
-            
-              {walkingDistance && (
-                <Text style={styles.subheading}>
-                  ~{walkingTime} mins Walk
-                </Text>
-              )} */}
-            </Animated.View>
-
             {/* Dropdown for station selection */}
-            <Animated.View 
+            <Animated.View
               entering={FadeInDown.duration(500).delay(200)}
               style={styles.dropdownWrapper}
             >
@@ -341,13 +383,17 @@ export default function TimeTable() {
                   style={styles.dropdownTouchable}
                   onPress={toggleDropdown}
                 >
-                  <Text style={styles.dropdownText}>{selectedStation || 'Select a station'}</Text>
-                  <Animated.Text style={[styles.dropdownArrow, arrowStyle]}>▼</Animated.Text>
+                  <Text style={styles.dropdownText}>
+                    {selectedStation || "Select a station"}
+                  </Text>
+                  <Animated.Text style={[styles.dropdownArrow, arrowStyle]}>
+                    ▼
+                  </Animated.Text>
                 </TouchableOpacity>
               </Animated.View>
 
               <Animated.View style={[styles.optionsContainer, dropdownStyle]}>
-                <ScrollView 
+                <ScrollView
                   nestedScrollEnabled={true}
                   showsVerticalScrollIndicator={true}
                   style={styles.optionsScrollView}
@@ -357,14 +403,17 @@ export default function TimeTable() {
                       key={item.id}
                       style={[
                         styles.option,
-                        selectedStation === item.label && styles.selectedOption
+                        selectedStation === item.label && styles.selectedOption,
                       ]}
                       onPress={() => handleStationSelect(item.label)}
                     >
-                      <Text style={[
-                        styles.optionText,
-                        selectedStation === item.label && styles.selectedOptionText
-                      ]}>
+                      <Text
+                        style={[
+                          styles.optionText,
+                          selectedStation === item.label &&
+                            styles.selectedOptionText,
+                        ]}
+                      >
                         {item.label}
                       </Text>
                     </TouchableOpacity>
@@ -388,7 +437,9 @@ export default function TimeTable() {
                 <Text style={styles.text}>No trains scheduled</Text>
               </Animated.View>
             ) : (
-              showTrains && trains
+              // show train cards
+              showTrains &&
+              trains
                 .sort((a, b) => parseInt(a.DueIn) - parseInt(b.DueIn))
                 .map((train, index) => (
                   <TrainCard
@@ -408,136 +459,141 @@ export default function TimeTable() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#25292e',
+    backgroundColor: "#25292e",
   },
   content: {
     padding: PixelRatio.roundToNearestPixel(20),
   },
   heading: {
-    color: '#fff',
+    color: "#fff",
     fontSize: PixelRatio.roundToNearestPixel(20),
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: PixelRatio.roundToNearestPixel(10),
   },
   subheading: {
-    color: '#fff',
+    color: "#fff",
     fontSize: PixelRatio.roundToNearestPixel(16),
     marginBottom: PixelRatio.roundToNearestPixel(15),
   },
   text: {
-    color: '#fff',
+    color: "#fff",
     fontSize: PixelRatio.roundToNearestPixel(14),
     marginBottom: PixelRatio.roundToNearestPixel(5),
   },
   trainCard: {
-    backgroundColor: '#3a3f47',
+    backgroundColor: "#3a3f47",
     padding: PixelRatio.roundToNearestPixel(15),
     borderRadius: PixelRatio.roundToNearestPixel(8),
     marginBottom: PixelRatio.roundToNearestPixel(10),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#4a4f57',
+    borderColor: "#4a4f57",
   },
   trainCardContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   trainInfo: {
     flex: 1,
     marginRight: PixelRatio.roundToNearestPixel(15),
   },
   trainTitle: {
-    color: '#fff',
+    color: "#fff",
     fontSize: PixelRatio.roundToNearestPixel(18),
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: PixelRatio.roundToNearestPixel(8),
   },
   lateText: {
-    color: '#ff6b6b',
+    color: "#ff6b6b",
     fontSize: PixelRatio.roundToNearestPixel(14),
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   earlyText: {
-    color: '#51cf66',
+    color: "#51cf66",
     fontSize: PixelRatio.roundToNearestPixel(14),
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   onTimeText: {
-    color: '#51cf66',
+    color: "#51cf66",
     fontSize: PixelRatio.roundToNearestPixel(14),
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   dropdownWrapper: {
-    width: '100%',
+    width: "100%",
     marginVertical: PixelRatio.roundToNearestPixel(15),
     zIndex: 1000,
   },
   dropdown: {
-    backgroundColor: '#3a3f47',
+    backgroundColor: "#3a3f47",
     borderRadius: PixelRatio.roundToNearestPixel(8),
     borderWidth: 1,
-    borderColor: '#4a5057',
+    borderColor: "#a9a8a8ff",
   },
   dropdownTouchable: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: PixelRatio.roundToNearestPixel(15),
   },
   dropdownText: {
-    color: '#fff',
-    fontSize: PixelRatio.roundToNearestPixel(20),
+    color: "#fff",
+    fontSize: PixelRatio.roundToNearestPixel(24),
+    fontWeight: "400", //
   },
   dropdownArrow: {
-    color: '#fff',
+    color: "#fff",
     fontSize: PixelRatio.roundToNearestPixel(12),
   },
   optionsContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: PixelRatio.roundToNearestPixel(50),
     left: 0,
     right: 0,
-    backgroundColor: '#3a3f47',
+    backgroundColor: "#3a3f47",
     borderBottomLeftRadius: PixelRatio.roundToNearestPixel(8),
     borderBottomRightRadius: PixelRatio.roundToNearestPixel(8),
     borderWidth: 1,
     borderTopWidth: 0,
-    borderColor: '#4a5057',
-    overflow: 'hidden',
+    borderColor: "#a9a8a8ff",
+    minHeight: 400,
+    overflow: "hidden",
     zIndex: 1001,
   },
   optionsScrollView: {
     maxHeight: PixelRatio.roundToNearestPixel(300),
+    minHeight: 400,
+    top: PixelRatio.roundToNearestPixel(10),
+    backgroundColor: "#3a3f47",
   },
   option: {
     padding: PixelRatio.roundToNearestPixel(15),
     borderTopWidth: 1,
-    borderTopColor: '#4a5057',
+    borderTopColor: "#4a5057",
   },
   optionText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: PixelRatio.roundToNearestPixel(18),
   },
   selectedOption: {
-    backgroundColor: '#4a5f77',
+    backgroundColor: "#4a5f77",
   },
   selectedOptionText: {
-    color: '#51cf66',
-    fontWeight: 'bold',
+    color: "#51cf66",
+    fontWeight: "bold",
   },
   dueInContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     minWidth: PixelRatio.roundToNearestPixel(60),
   },
   dueInNumber: {
-    color: '#fff',
+    color: "#fff",
     fontSize: PixelRatio.roundToNearestPixel(36),
-    fontWeight: 'bold',
+    fontWeight: "bold",
     lineHeight: PixelRatio.roundToNearestPixel(40),
   },
   dueInLabel: {
-    color: '#aaa',
+    color: "#aaa",
     fontSize: PixelRatio.roundToNearestPixel(12),
     marginTop: PixelRatio.roundToNearestPixel(-4),
   },
