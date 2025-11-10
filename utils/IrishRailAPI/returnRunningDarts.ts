@@ -1,16 +1,16 @@
 import { XMLParser } from 'fast-xml-parser';
-import * as admin from 'firebase-admin';
+// import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin SDK (do this once at the top)
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-    // Or use a service account key file:
-    // credential: admin.credential.cert(require('./path-to-serviceAccountKey.json'))
-  });
-}
+// if (!admin.apps.length) {
+//   admin.initializeApp({
+//     credential: admin.credential.applicationDefault(),
+//     // Or use a service account key file:
+//     // credential: admin.credential.cert(require('./path-to-serviceAccountKey.json'))
+//   });
+// }
 
-const db = admin.firestore();
+// const db = admin.firestore();
 
 interface DartTrain {
   TrainStatus: string;
@@ -40,7 +40,7 @@ async function uploadTrainToFirebase(train: any): Promise<void> {
     const sanitizedTrainCode = sanitizeTrainCode(trainCode);
     
     // Reference to the specific train document: Trains/{TrainCode}
-    const trainDocRef = db.collection('Trains').doc(sanitizedTrainCode);
+    // const trainDocRef = db.collection('Trains').doc(sanitizedTrainCode);
     
     // Prepare train data with all metadata
     const trainData = {
@@ -51,12 +51,12 @@ async function uploadTrainToFirebase(train: any): Promise<void> {
       longitude: train.TrainLongitude || null,
       trainDate: train.TrainDate || null,
       publicMessage: train.PublicMessage || null,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      // timestamp: admin.firestore.FieldValue.serverTimestamp(),
       lastUpdated: new Date().toISOString(),
     };
     
     // Upload to Firebase (set overwrites existing document)
-    await trainDocRef.set(trainData);
+    // await trainDocRef.set(trainData);
     console.log(`✓ Uploaded train ${trainCode} (ID: ${sanitizedTrainCode}) to Firebase`);
   } catch (error) {
     console.error(`✗ Error uploading train ${train.TrainCode}:`, error);
