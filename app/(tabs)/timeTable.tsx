@@ -24,6 +24,7 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import * as Location from "expo-location";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getAllStations,
   Station,
@@ -37,9 +38,43 @@ import {
   metersToKm,
   secondsToMinutes,
 } from "@/utils/returnWalkingData";
-import { DART_STATION_CODES } from "./home";
 import { getDistance } from "geolib";
 import { useRouter } from "expo-router";
+
+export const DART_STATION_CODES: Record<string, string> = {
+  Howth: "HOWTH",
+  Sutton: "SUTTN",
+  Bayside: "BYSDE",
+  Malahide: "MHIDE",
+  Portmarnock: "PMNCK",
+  Clongriffin: "GRGRD",
+  "Howth Junction & Donaghmede": "HWTHJ",
+  Kilbarrack: "KBRCK",
+  Raheny: "RAHNY",
+  Harmonstown: "HTOWN",
+  Killester: "KLSTR",
+  "Clontarf Road": "CTARF",
+  Connolly: "CNLLY",
+  "Tara Street": "TARA",
+  Pearse: "PERSE",
+  "Grand Canal Dock": "GCDK",
+  "Lansdowne Road": "LDWNE",
+  Sandymount: "SMONT",
+  "Sydney Parade": "SIDNY",
+  Booterstown: "BTSTN",
+  Blackrock: "BROCK",
+  Seapoint: "SEAPT",
+  "Salthill & Monkstown": "SHILL",
+  "Dun Laoghaire": "DLERY",
+  "Sandycove & Glasthule": "SCOVE",
+  Glenageary: "GLGRY",
+  Dalkey: "DLKEY",
+  Killiney: "KILNY",
+  Shankill: "SKILL",
+  Woodbrook: "WBROK",
+  Bray: "BRAY",
+  Greystones: "GSTNS",
+};
 
 // Configuration
 const TRAIN_LOOKUP_MINUTES = 60; // Minutes to look ahead for trains
@@ -59,12 +94,6 @@ function calculateDistance(
   );
 }
 
-function printToConsole(train: TrainData, index: number) {
-  console.log("Clicked on:", train.Destination, " -- index:", index);
-
-  router.push("/trains");
-}
-
 // Reusable train card component
 type TrainCardProps = { train: TrainData; index: number };
 
@@ -75,7 +104,7 @@ function TrainCard({ train, index }: TrainCardProps) {
   const handleCardPress = () => {
     console.log("Clicked on:", train.Destination, " -- index:", index);
     router.push({
-      pathname: "/trains",
+      pathname: "/track",
       params: { destination: train.Destination, trainCode: train.TrainCode },
     });
   };
@@ -131,8 +160,16 @@ function TrainCard({ train, index }: TrainCardProps) {
             }}
           />
           <View style={styles.dueInContainer}>
-            <Text style={styles.dueInNumber}>{train.DueIn}</Text>
-            <Text style={styles.dueInLabel}>mins</Text>
+            {parseInt(train.DueIn) === 0 ? (
+              <Text style={styles.text}>Arrived</Text>
+            ) : (
+              <>
+                <Text style={styles.dueInNumber}>{train.DueIn}</Text>
+                <Text style={styles.dueInLabel}>
+                  {parseInt(train.DueIn) === 1 ? "min" : "mins"}
+                </Text>
+              </>
+            )}
           </View>
         </Animated.View>
       </Animated.View>
@@ -141,6 +178,7 @@ function TrainCard({ train, index }: TrainCardProps) {
 }
 
 export default function TimeTable() {
+  const insets = useSafeAreaInsets();
   // [current_value, function_to_update_value] = ReactHook<Type>(initial_value)
   const [closestStation, setClosestStation] = useState<Station | null>(null);
   // example call: setClosestStation(closest)
@@ -353,9 +391,13 @@ export default function TimeTable() {
 
   return (
     <ScrollView
+      // to offset refreshcontrol workaround
       style={styles.container}
+      contentInset={{ top: insets.top }}
+      contentOffset={{ y: -insets.top, x: 0 }}
       refreshControl={
         <RefreshControl
+          progressViewOffset={insets.top}
           refreshing={refreshing}
           onRefresh={onRefresh}
           tintColor="#fff"
@@ -463,6 +505,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: PixelRatio.roundToNearestPixel(20),
+    paddingBottom: 100,
   },
   heading: {
     color: "#fff",
@@ -546,14 +589,14 @@ const styles = StyleSheet.create({
   },
   optionsContainer: {
     position: "absolute",
-    top: PixelRatio.roundToNearestPixel(50),
+    top: PixelRatio.roundToNearestPixel(60),
     left: 0,
     right: 0,
     backgroundColor: "#3a3f47",
     borderBottomLeftRadius: PixelRatio.roundToNearestPixel(8),
     borderBottomRightRadius: PixelRatio.roundToNearestPixel(8),
     borderWidth: 1,
-    borderTopWidth: 0,
+    borderTopWidth: 0.1,
     borderColor: "#a9a8a8ff",
     minHeight: 400,
     overflow: "hidden",
@@ -563,7 +606,6 @@ const styles = StyleSheet.create({
     maxHeight: PixelRatio.roundToNearestPixel(300),
     minHeight: 400,
     top: PixelRatio.roundToNearestPixel(10),
-    backgroundColor: "#3a3f47",
   },
   option: {
     padding: PixelRatio.roundToNearestPixel(15),
