@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Text,
   View,
@@ -48,7 +48,7 @@ export const DART_STATION_CODES: Record<string, string> = {
   Malahide: "MHIDE",
   Portmarnock: "PMNCK",
   Clongriffin: "GRGRD",
-  "Howth Junction & Donaghmede": "HWTHJ",
+  "Howth Junction": "HWTHJ",
   Kilbarrack: "KBRCK",
   Raheny: "RAHNY",
   Harmonstown: "HTOWN",
@@ -66,7 +66,7 @@ export const DART_STATION_CODES: Record<string, string> = {
   Seapoint: "SEAPT",
   "Salthill & Monkstown": "SHILL",
   "Dun Laoghaire": "DLERY",
-  "Sandycove & Glasthule": "SCOVE",
+  Sandycove: "SCOVE",
   Glenageary: "GLGRY",
   Dalkey: "DLKEY",
   Killiney: "KILNY",
@@ -75,6 +75,8 @@ export const DART_STATION_CODES: Record<string, string> = {
   Bray: "BRAY",
   Greystones: "GSTNS",
 };
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Configuration
 const TRAIN_LOOKUP_MINUTES = 60; // Minutes to look ahead for trains
@@ -181,6 +183,11 @@ export default function TimeTable() {
   const insets = useSafeAreaInsets();
   // [current_value, function_to_update_value] = ReactHook<Type>(initial_value)
   const [closestStation, setClosestStation] = useState<Station | null>(null);
+  const [allStations, setAllStations] = useState<Station[]>([]);
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   // example call: setClosestStation(closest)
 
   const [trains, setTrains] = useState<TrainData[]>([]);
@@ -199,12 +206,71 @@ export default function TimeTable() {
   const rotation = useSharedValue(0);
   const dropdownHeight = useSharedValue(0);
 
+  // favourites
+  const [favouriteStations, setFavouriteStations] = useState<string[]>([]);
+
+  useEffect(() => {
+    async function loadFavourites() {
+      try {
+        const stationFavourites = await AsyncStorage.getItem(
+          "favouriteStations"
+        );
+        if (stationFavourites) {
+          const parsedData = JSON.parse(stationFavourites);
+          setFavouriteStations(parsedData);
+        }
+      } catch (err) {
+        console.error("Failed to load favourites:", err);
+        setError("Failed to load favourite stations");
+      }
+    }
+    loadFavourites();
+  }, []);
+
   const options = Object.keys(DART_STATION_CODES)
     // .sort((a, b) => a.localeCompare(b)) // to sort stations in alphabetical order
     .map((stationName, index) => ({
       id: String(index + 1),
       label: stationName,
     }));
+
+  const { sortedOptions, distances } = useMemo(() => {
+    const distances: Record<string, number> = {};
+    const getDistance = (item: { label: string }) => {
+      if (distances[item.label] !== undefined) return distances[item.label];
+      const station = allStations.find((s) => s.StationDesc === item.label);
+      const dist =
+        userLocation && station
+          ? calculateDistance(
+              userLocation.latitude,
+              userLocation.longitude,
+              station.StationLatitude,
+              station.StationLongitude
+            )
+          : Infinity;
+      distances[item.label] = dist;
+      return dist;
+    };
+
+    const favs = options
+      .filter((item) => favouriteStations.includes(item.label))
+      .sort((a, b) => getDistance(a) - getDistance(b));
+    const nonFavs = options
+      .filter((item) => !favouriteStations.includes(item.label))
+      .sort((a, b) => getDistance(a) - getDistance(b));
+    const result = [];
+    if (favs.length > 0) {
+      result.push({ type: "header", label: "Favourites" });
+      result.push(...favs);
+      if (nonFavs.length > 0) {
+        result.push({ type: "header", label: "Other Stations" });
+        result.push(...nonFavs);
+      }
+    } else {
+      result.push(...nonFavs);
+    }
+    return { sortedOptions: result, distances };
+  }, [favouriteStations, allStations, userLocation]);
 
   // loading pulse
   const loadingOpacity = useSharedValue(1);
@@ -252,6 +318,25 @@ export default function TimeTable() {
       { duration: 300 }
     );
   };
+
+  const toggleFavourite = useCallback(
+    async (stationName: string) => {
+      const isFavourite = favouriteStations.includes(stationName);
+      const updatedFavourites = isFavourite
+        ? favouriteStations.filter((fav) => fav !== stationName)
+        : [...favouriteStations, stationName];
+      setFavouriteStations(updatedFavourites);
+      try {
+        await AsyncStorage.setItem(
+          "favouriteStations",
+          JSON.stringify(updatedFavourites)
+        );
+      } catch (err) {
+        console.error("Failed to save favourites:", err);
+      }
+    },
+    [favouriteStations]
+  );
 
   const handleStationSelect = (stationName: string) => {
     setSelectedStation(stationName);
@@ -326,9 +411,11 @@ export default function TimeTable() {
         // Get user's current location
         const location = await Location.getCurrentPositionAsync({});
         const { latitude, longitude } = location.coords;
+        setUserLocation({ latitude, longitude });
 
         // Fetch all DART stations
         const stations = await getAllStations();
+        setAllStations(stations);
 
         // Find the closest station
         let closest: Station | null = null;
@@ -440,26 +527,68 @@ export default function TimeTable() {
                   showsVerticalScrollIndicator={true}
                   style={styles.optionsScrollView}
                 >
-                  {options.map((item) => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={[
-                        styles.option,
-                        selectedStation === item.label && styles.selectedOption,
-                      ]}
-                      onPress={() => handleStationSelect(item.label)}
-                    >
-                      <Text
+                  {sortedOptions.map((item) => {
+                    if (item.type === "header" || item.type === "separator") {
+                      return (
+                        <View key={item.label} style={styles.separator}>
+                          <Text style={styles.separatorText}>{item.label}</Text>
+                          <View style={styles.separatorLine} />
+                        </View>
+                      );
+                    }
+                    const station = allStations.find(
+                      (s) => s.StationDesc === item.label
+                    );
+                    const distance = distances[item.label]?.toFixed(1);
+                    return (
+                      // handle button presses
+                      <TouchableOpacity
+                        key={item.id}
                         style={[
-                          styles.optionText,
+                          styles.option,
                           selectedStation === item.label &&
-                            styles.selectedOptionText,
+                            styles.selectedOption,
                         ]}
+                        onPress={() => handleStationSelect(item.label)}
                       >
-                        {item.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <View style={styles.optionContent}>
+                          {/* style the selected option */}
+                          <Text
+                            style={[
+                              styles.optionText,
+                              selectedStation === item.label &&
+                                styles.selectedOptionText,
+                            ]}
+                          >
+                            {item.label}
+                          </Text>
+                          <View style={styles.rightSection}>
+                            {distance && (
+                              <Text style={styles.distanceText}>
+                                {distance} km
+                              </Text>
+                            )}
+                            <TouchableOpacity
+                              onPress={() => toggleFavourite(item.label)}
+                              style={styles.starTouchable}
+                            >
+                              <Text
+                                style={
+                                  favouriteStations.includes(item.label)
+                                    ? styles.favouriteStar
+                                    : styles.emptyStar
+                                }
+                              >
+                                {favouriteStations.includes(item.label)
+                                  ? "★"
+                                  : "☆"}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
               </Animated.View>
             </Animated.View>
@@ -605,12 +734,16 @@ const styles = StyleSheet.create({
   optionsScrollView: {
     maxHeight: PixelRatio.roundToNearestPixel(300),
     minHeight: 400,
-    top: PixelRatio.roundToNearestPixel(10),
   },
   option: {
     padding: PixelRatio.roundToNearestPixel(15),
     borderTopWidth: 1,
     borderTopColor: "#4a5057",
+  },
+  optionContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   optionText: {
     color: "#fff",
@@ -638,5 +771,39 @@ const styles = StyleSheet.create({
     color: "#aaa",
     fontSize: PixelRatio.roundToNearestPixel(12),
     marginTop: PixelRatio.roundToNearestPixel(-4),
+  },
+  favouriteStar: {
+    color: "#ffd700", // Gold color for filled star
+    fontSize: PixelRatio.roundToNearestPixel(20),
+  },
+  emptyStar: {
+    color: "#aaa", // Gray color for empty star (adjust as needed)
+    fontSize: PixelRatio.roundToNearestPixel(20),
+  },
+  starTouchable: {
+    padding: PixelRatio.roundToNearestPixel(5), // Add padding for easier tapping
+  },
+  separator: {
+    padding: PixelRatio.roundToNearestPixel(10),
+    backgroundColor: "#2a2e35", // Slightly different background
+  },
+  separatorText: {
+    color: "#fff",
+    fontSize: PixelRatio.roundToNearestPixel(16),
+    fontWeight: "bold",
+  },
+  separatorLine: {
+    height: 1,
+    backgroundColor: "#4a4f57",
+    marginTop: PixelRatio.roundToNearestPixel(5),
+  },
+  rightSection: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  distanceText: {
+    color: "#ccc", // Light grey color
+    fontSize: PixelRatio.roundToNearestPixel(14),
+    // Removed marginRight to place right beside star
   },
 });

@@ -31,13 +31,20 @@ export async function getAllStations(): Promise<Station[]> {
     // Ensure stations is always an array (single station might not be in array)
     const stationsArray = Array.isArray(stations) ? stations : [stations];
     
-    cachedStations = stationsArray.map((station: any) => ({
-      StationDesc: station.StationDesc || '',
-      StationCode: station.StationCode || '',
-      StationId: station.StationId || '',
-      StationLatitude: parseFloat(station.StationLatitude || '0'),
-      StationLongitude: parseFloat(station.StationLongitude || '0'),
-    }));
+    cachedStations = stationsArray.map((station: any) => {
+      let StationDesc = station.StationDesc || '';
+      if (StationDesc === 'Dublin Pearse') StationDesc = 'Pearse';
+      else if (StationDesc === 'Dublin Connolly') StationDesc = 'Connolly';
+      else if (StationDesc === 'Salthill and Monkstown') StationDesc = 'Salthill & Monkstown';
+      
+      return {
+        StationDesc,
+        StationCode: station.StationCode || '',
+        StationId: station.StationId || '',
+        StationLatitude: parseFloat(station.StationLatitude || '0'),
+        StationLongitude: parseFloat(station.StationLongitude || '0'),
+      };
+    });
     
     return cachedStations;
   } catch (error) {
