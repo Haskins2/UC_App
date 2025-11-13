@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Platform, StyleSheet, useColorScheme } from "react-native";
+import { Platform, StyleSheet, useColorScheme, Image } from "react-native";
 import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 
@@ -12,11 +12,22 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: "#ffd33d",
         headerTransparent: Platform.OS === "ios",
-        headerTitle: "",
+        headerTitle: () => (
+          <Image
+            source={require("../../assets/images/Irish_Rail_Logo_Dark.png")}
+            style={{
+              width: 180,
+              height: 70,
+              resizeMode: "contain",
+              bottom: 7,
+            }}
+          />
+        ),
+        headerTitleAlign: "center",
         headerStyle: {
           // Transparent on iOS so headerBackground can show through; solid on Android.
-          backgroundColor: Platform.OS === "ios" ? "transparent" : "#25292e",
-          height: 58,
+          backgroundColor: Platform.OS === "ios" ? "transparent" : "#336eb6ff",
+          height: 110,
         },
         headerShadowVisible: false,
         headerTintColor: "#fff",
