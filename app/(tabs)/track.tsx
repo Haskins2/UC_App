@@ -1,6 +1,6 @@
-import { Text, View, StyleSheet, ScrollView } from "react-native";
+import { Text, View, StyleSheet, ScrollView, PixelRatio } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -15,37 +15,40 @@ import {
   TrainMovement,
 } from "../../utils/IrishRailAPI/returnTrainData";
 
-// export const DART_STATION_CODES: Record<string, string> = {
-//   Malahide: "MLHDE",
-//   Portmarnock: "PMRNK",
-//   Clongriffin: "CLGRF",
-//   "Howth Junction & Donaghmede": "HWTHJ",
-//   Kilbarrack: "KBRCK",
-//   Raheny: "RAHNY",
-//   Harmonstown: "HTOWN",
-//   Killester: "KLSTR",
-//   "Clontarf Road": "CTARF",
-//   Connolly: "CNLLY",
-//   "Tara Street": "TARA",
-//   Pearse: "PERSE",
-//   "Grand Canal Dock": "GCDK",
-//   "Lansdowne Road": "LDWNE",
-//   Sandymount: "SMONT",
-//   "Sydney Parade": "SIDNY",
-//   Booterstown: "BTSTN",
-//   Blackrock: "BROCK",
-//   Seapoint: "SEAPT",
-//   "Salthill & Monkstown": "SHILL",
-//   "Dun Laoghaire": "DLERY",
-//   "Sandycove & Glasthule": "SCOVE",
-//   Glenageary: "GLGRY",
-//   Dalkey: "DLKEY",
-//   Killiney: "KILNY",
-//   Shankill: "SKILL",
-//   Woodbrook: "WBROK",
-//   "Bray Daly": "BRAY",
-//   Greystones: "GSTNS",
-// };
+export const DART_STATION_CODES: Record<string, string> = {
+  Howth: "HOWTH",
+  Sutton: "SUTTN",
+  Bayside: "BYSDE",
+  Malahide: "MHIDE",
+  Portmarnock: "PMNCK",
+  Clongriffin: "GRGRD",
+  "Howth Junction": "HWTHJ",
+  Kilbarrack: "KBRCK",
+  Raheny: "RAHNY",
+  Harmonstown: "HTOWN",
+  Killester: "KLSTR",
+  "Clontarf Road": "CTARF",
+  Connolly: "CNLLY",
+  "Tara Street": "TARA",
+  Pearse: "PERSE",
+  "Grand Canal Dock": "GCDK",
+  "Lansdowne Road": "LDWNE",
+  Sandymount: "SMONT",
+  "Sydney Parade": "SIDNY",
+  Booterstown: "BTSTN",
+  Blackrock: "BROCK",
+  Seapoint: "SEAPT",
+  "Salthill & Monkstown": "SHILL",
+  "Dun Laoghaire": "DLERY",
+  Sandycove: "SCOVE",
+  Glenageary: "GLGRY",
+  Dalkey: "DLKEY",
+  Killiney: "KILNY",
+  Shankill: "SKILL",
+  Woodbrook: "WBROK",
+  Bray: "BRAY",
+  Greystones: "GSTNS",
+};
 
 export default function TrackingScreen() {
   const [stationData, setStationData] = useState<Record<string, string>>({});
@@ -57,6 +60,8 @@ export default function TrackingScreen() {
   const [isAtStation, setIsAtStation] = useState(false);
   const [nextStopIndex, setNextStopIndex] = useState<number | null>(null);
   const { destination, trainCode } = useLocalSearchParams();
+
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // Animated value for flashing next stop
   // const flashOpacity = useSharedValue(1); // Removed
@@ -86,7 +91,39 @@ export default function TrackingScreen() {
         console.log("\n--- Fetching train position ---");
         const code = Array.isArray(trainCode) ? trainCode[0] : trainCode;
         if (!code) {
-          console.log("Train code is missing.");
+          console.log("Train code is missing. Displaying DART line.");
+          const dartStations = Object.keys(DART_STATION_CODES).map(
+            (stationName, index) =>
+              ({
+                LocationFullName: stationName,
+                LocationCode: DART_STATION_CODES[stationName],
+                LocationType:
+                  index === 0
+                    ? "O"
+                    : index === Object.keys(DART_STATION_CODES).length - 1
+                    ? "D"
+                    : "S",
+                // Add dummy values for other required fields
+                TrainCode: "",
+                TrainDate: "",
+                LocationOrder: index,
+                TrainOrigin: "",
+                TrainDestination: "",
+                ScheduledArrival: "",
+                ScheduledDeparture: "",
+                ExpectedArrival: "",
+                ExpectedDeparture: "",
+                Arrival: "",
+                Departure: "",
+                AutoArrival: "",
+                AutoDepart: "",
+                StopType: "-",
+              } as TrainMovement)
+          );
+          setStations(dartStations);
+          setTrainPosition(null);
+          setIsAtStation(false);
+          setNextStopIndex(null);
           return;
         }
         const allMovements = await getTrainMovements(code);
@@ -141,11 +178,31 @@ export default function TrackingScreen() {
     // Initial fetch
     updateTrainPosition();
 
-    // Poll every 10 seconds
-    const interval = setInterval(updateTrainPosition, 10000);
-
-    return () => clearInterval(interval);
+    // Poll every 10 seconds only if there is a train code
+    if (trainCode) {
+      const interval = setInterval(updateTrainPosition, 10000);
+      return () => clearInterval(interval);
+    }
   }, [trainCode]);
+
+  useEffect(() => {
+    if (trainPosition !== null && scrollViewRef.current) {
+      // Each station item has a height of 80.
+      const yOffset = trainPosition * 80;
+
+      // Scroll to center the train's position on the screen.
+      // We subtract half the container's height to center it.
+      // The container has paddingTop: 100 and paddingBottom: 80.
+      // A rough estimate for centering would be to subtract around 300-400.
+      // Let's use a value that works well for most screens.
+      const centeredOffset = yOffset - 300;
+
+      scrollViewRef.current.scrollTo({
+        y: Math.max(0, centeredOffset), // Ensure we don't scroll to a negative position
+        animated: true,
+      });
+    }
+  }, [trainPosition]);
 
   /* This useEffect is no longer needed as the animation is handled inside useAnimatedStyle
   useEffect(() => {
@@ -227,9 +284,19 @@ export default function TrackingScreen() {
     );
   };
 
+  const displayDestination = Array.isArray(destination)
+    ? destination[0]
+    : destination;
+
   return (
     <View style={styles.container}>
+      {displayDestination && (
+        <View style={styles.headerContainer}>
+          <Text style={styles.headerText}>DART to {displayDestination}</Text>
+        </View>
+      )}
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
       >
@@ -241,7 +308,7 @@ export default function TrackingScreen() {
             <View key={index} style={styles.stationContainer}>
               <View style={styles.stationSection}>
                 <View style={styles.timeContainer}>
-                  {station.LocationType !== "D" && (
+                  {station.LocationType !== "D" && departureTime && (
                     <Text style={styles.timeText}>{departureTime}</Text>
                   )}
                 </View>
@@ -273,8 +340,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#25292e",
-    paddingTop: 90,
-    paddingBottom: 80,
+    paddingTop: PixelRatio.roundToNearestPixel(170),
+    paddingBottom: PixelRatio.roundToNearestPixel(80),
+  },
+  headerContainer: {
+    position: "absolute",
+    top: PixelRatio.roundToNearestPixel(100),
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 10,
+  },
+  headerText: {
+    color: "#fff",
+    fontSize: 24,
+    top: 25,
+    fontWeight: "light",
   },
   scrollView: {
     flex: 1,
