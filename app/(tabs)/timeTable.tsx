@@ -479,6 +479,7 @@ export default function TimeTable() {
   return (
     <ScrollView
       // to offset refreshcontrol workaround
+      // need to fix again
       style={styles.container}
       contentInset={{ top: insets.top }}
       contentOffset={{ y: -insets.top, x: 0 }}
@@ -728,13 +729,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderTopWidth: 0.1,
     borderColor: "#a9a8a8ff",
-    minHeight: PixelRatio.roundToNearestPixel(400),
+    minHeight: 400,
     overflow: "hidden",
     zIndex: 1001,
   },
   optionsScrollView: {
     maxHeight: PixelRatio.roundToNearestPixel(300),
-    minHeight: PixelRatio.roundToNearestPixel(400),
+    minHeight: 400,
   },
   option: {
     padding: PixelRatio.roundToNearestPixel(15),
