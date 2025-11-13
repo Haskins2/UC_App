@@ -634,6 +634,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: PixelRatio.roundToNearestPixel(20),
+    top: PixelRatio.roundToNearestPixel(30),
     paddingBottom: 100,
   },
   heading: {
@@ -727,13 +728,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderTopWidth: 0.1,
     borderColor: "#a9a8a8ff",
-    minHeight: 400,
+    minHeight: PixelRatio.roundToNearestPixel(400),
     overflow: "hidden",
     zIndex: 1001,
   },
   optionsScrollView: {
     maxHeight: PixelRatio.roundToNearestPixel(300),
-    minHeight: 400,
+    minHeight: PixelRatio.roundToNearestPixel(400),
   },
   option: {
     padding: PixelRatio.roundToNearestPixel(15),
