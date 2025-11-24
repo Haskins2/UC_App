@@ -63,3 +63,7 @@ app-example
 # generated native folders
 /ios
 /android
+
+# firebase
+config/firebase.ts
+firebaseConfig.ts
