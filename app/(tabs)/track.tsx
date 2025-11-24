@@ -204,20 +204,6 @@ export default function TrackingScreen() {
     }
   }, [trainPosition]);
 
-  /* This useEffect is no longer needed as the animation is handled inside useAnimatedStyle
-  useEffect(() => {
-    // Slower flashing animation for next stop
-    flashOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0.4, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1,
-      true
-    );
-  }, []);
-  */
-
   const getStationIndex = (pos: number) => Math.round(pos);
 
   const isPastStop = (index: number): boolean => {
