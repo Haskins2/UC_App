@@ -40,6 +40,8 @@ import {
 } from "@/utils/returnWalkingData";
 import { getDistance } from "geolib";
 import { useRouter } from "expo-router";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/config/firebase";
 
 export const DART_STATION_CODES: Record<string, string> = {
   Howth: "HOWTH",
@@ -398,83 +400,82 @@ export default function TimeTable() {
   }, [selectedStation, fetchTrains]);
 
   useEffect(() => {
-    async function findClosestStation() {
+    // 1. Fetch all stations and user location (for list sorting)
+    async function initLocalData() {
       try {
-        // Request location permissions
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          setError("Permission to access location was denied");
-          setLoading(false);
-          return;
-        }
-
-        // Get user's current location
-        const location = await Location.getCurrentPositionAsync({});
-        const { latitude, longitude } = location.coords;
-        setUserLocation({ latitude, longitude });
-
-        // Fetch all DART stations
         const stations = await getAllStations();
         setAllStations(stations);
 
-        // Find the closest station
-        let closest: Station | null = null;
-        let minDistance = Infinity;
-
-        stations.forEach((station) => {
-          const distance = calculateDistance(
-            latitude,
-            longitude,
-            station.StationLatitude,
-            station.StationLongitude
-          );
-
-          if (distance < minDistance) {
-            minDistance = distance;
-            closest = station;
-          }
-        });
-
-        setClosestStation(closest);
-
-        if (closest) {
-          // Set as default selected station
-          setSelectedStation(closest.StationDesc);
-
-          // Fetch walking route data
-          try {
-            const walkingRoute = await getWalkingRoute(
-              latitude,
-              longitude,
-              closest.StationLatitude,
-              closest.StationLongitude
-            );
-            setWalkingDistance(metersToKm(walkingRoute.distance));
-            setWalkingTime(secondsToMinutes(walkingRoute.duration));
-          } catch (walkError) {
-            console.error("Failed to get walking route:", walkError);
-            // Fallback to straight-line estimate
-            setWalkingDistance((minDistance * 1.4).toFixed(2));
-            setWalkingTime(Math.round(minDistance * 1.4 * 12).toString()); // ~12 min per km
-          }
-
-          // Fetch train data for the closest station
-          const trainData = await getStationDataByCode(
-            closest.StationCode,
-            TRAIN_LOOKUP_MINUTES
-          );
-          setTrains(trainData);
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          const location = await Location.getCurrentPositionAsync({});
+          setUserLocation(location.coords);
         }
-      } catch (err) {
-        setError("Failed to find closest station");
-        console.error(err);
-      } finally {
-        setLoading(false);
+      } catch (e) {
+        console.error("Error initializing local data", e);
       }
     }
+    initLocalData();
 
-    findClosestStation();
+    // 2. Subscribe to nearest station from Cloud Function
+    const unsubscribe = onSnapshot(
+      doc(db, "users", "keela_e_duffy", "processed", "nearestStation"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          // Map Firestore data to Station interface
+          const nearest: Station = {
+            StationDesc: data.stationName,
+            StationCode: data.stationCode,
+            StationId: String(data.stationId),
+            StationLatitude: data.latitude,
+            StationLongitude: data.longitude,
+          };
+
+          setClosestStation(nearest);
+
+          // If no station selected yet, select this one
+          setSelectedStation((prev) => prev || nearest.StationDesc);
+        }
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Firestore subscription error:", err);
+        setError("Failed to subscribe to nearest station updates");
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
+
+  // Update walking route when closest station or user location changes
+  useEffect(() => {
+    if (closestStation && userLocation) {
+      getWalkingRoute(
+        userLocation.latitude,
+        userLocation.longitude,
+        closestStation.StationLatitude,
+        closestStation.StationLongitude
+      )
+        .then((route) => {
+          setWalkingDistance(metersToKm(route.distance));
+          setWalkingTime(secondsToMinutes(route.duration));
+        })
+        .catch((err) => {
+          console.error("Walking route error:", err);
+          // Fallback
+          const dist = calculateDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            closestStation.StationLatitude,
+            closestStation.StationLongitude
+          );
+          setWalkingDistance(dist.toFixed(2));
+          setWalkingTime(Math.round(dist * 12).toString());
+        });
+    }
+  }, [closestStation, userLocation]);
 
   return (
     <ScrollView
