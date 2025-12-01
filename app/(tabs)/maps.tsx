@@ -6,15 +6,29 @@ import {
   getAllStations,
   Station,
 } from "@/utils/IrishRailAPI/returnAllStations";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/config/firebase";
 
 // Train station icon component using custom image
-const TrainIcon = () => (
-  <View style={styles.markerContainer}>
-    <Image
-      source={require("@/assets/dart_icon.jpeg")}
-      style={styles.trainIconImage}
-      resizeMode="contain"
-    />
+const TrainIcon = ({ isClosest }: { isClosest?: boolean }) => (
+  <View style={{ alignItems: "center" }}>
+    <View
+      style={[
+        styles.markerContainer,
+        isClosest && styles.closestMarkerContainer,
+      ]}
+    >
+      <Image
+        source={require("@/assets/dart_icon.jpeg")}
+        style={styles.trainIconImage}
+        resizeMode="contain"
+      />
+    </View>
+    {isClosest && (
+      <View style={styles.closestBadge}>
+        <Text style={styles.closestText}>Closest</Text>
+      </View>
+    )}
   </View>
 );
 
@@ -24,6 +38,7 @@ export default function MapsScreen() {
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [stations, setStations] = useState<Station[]>([]);
+  const [closestStation, setClosestStation] = useState<Station | null>(null);
   const [railNetwork, setRailNetwork] = useState<any>(null);
   const [initialRegion, setInitialRegion] = useState<{
     latitude: number;
@@ -60,6 +75,31 @@ export default function MapsScreen() {
     };
 
     fetchStations();
+
+    // Subscribe to nearest station from Cloud Function
+    const unsubscribe = onSnapshot(
+      doc(db, "users", "keela_e_duffy", "processed", "nearestStation"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          // Map Firestore data to Station interface
+          const nearest: Station = {
+            StationDesc: data.stationName,
+            StationCode: data.stationCode,
+            StationId: String(data.stationId),
+            StationLatitude: data.latitude,
+            StationLongitude: data.longitude,
+          };
+
+          setClosestStation(nearest);
+        }
+      },
+      (err) => {
+        console.error("Firestore subscription error:", err);
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -210,19 +250,24 @@ export default function MapsScreen() {
           {railNetwork?.features?.map((f: any, i: number) =>
             renderFeature(f, i)
           )}
-          {stations.map((station) => (
-            <Marker
-              key={station.StationId}
-              coordinate={{
-                latitude: station.StationLatitude,
-                longitude: station.StationLongitude,
-              }}
-              title={station.StationDesc}
-              description={`Station Code: ${station.StationCode}`}
-            >
-              <TrainIcon />
-            </Marker>
-          ))}
+          {stations.map((station) => {
+            const isClosest =
+              closestStation?.StationCode === station.StationCode;
+            return (
+              <Marker
+                key={station.StationId}
+                coordinate={{
+                  latitude: station.StationLatitude,
+                  longitude: station.StationLongitude,
+                }}
+                title={station.StationDesc}
+                description={`Station Code: ${station.StationCode}`}
+                zIndex={isClosest ? 999 : 1}
+              >
+                <TrainIcon isClosest={isClosest} />
+              </Marker>
+            );
+          })}
         </MapView>
       ) : (
         <View style={styles.loadingContainer}>
@@ -282,6 +327,30 @@ const styles = StyleSheet.create({
     elevation: 5,
     justifyContent: "center",
     alignItems: "center",
+  },
+  closestMarkerContainer: {
+    borderColor: "#4CAF50", // Green color
+    borderWidth: 3,
+    transform: [{ scale: 1.2 }],
+  },
+  closestBadge: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: "white",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 1,
+    elevation: 3,
+  },
+  closestText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "bold",
   },
   trainIconImage: {
     width: 40,
