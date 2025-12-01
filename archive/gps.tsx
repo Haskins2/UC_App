@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
-import { db } from "../../config/firebase";
+import { db } from "../config/firebase";
 import {
   collection,
   addDoc,
